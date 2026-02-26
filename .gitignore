@@ -1,3 +1,5 @@
 
-.gitignore
+.cursor/
 .cursorrules
+*.cursorrules.swp
+.aider*
