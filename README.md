@@ -22,14 +22,14 @@ Then open `experiments/SpecTackle_SchemeB.ipynb` and run the cells. It'll genera
 
 ## Layout
 
-- `src/spectackle/` – core package: data generation, models, training, plotting
-- `experiments/` – notebooks (Scheme B, Scheme C, B vs C comparison)
-- `scripts/` – validation script for phase 2
-- `docs/` – project notes (mostly internal)
+- `src/spectackle/` – core package with data generation, models, training, plotting scripts. Probs going to change a lot as we go for the time being.
+- `experiments/` – notebooks (Scheme B, Scheme C, B vs C comparison, and working on getting a version of Scheme A and D up w/ suitble comparisons)
+- `scripts/` – validation scripts (kinda incomplete rn)
+- `docs/` – notes and more detailed documentation (when I get to it)
 
 ## Status
 
-WIP. Scheme B and C both train and converge on synthetic data. Val MAE is usually around 1.1–1.4 for K in 0–10 with the default config. We haven't really pushed on architecture or data difficulty yet – that's next.
+WIP. Scheme B and C both train and converge on synthetic data. Val MAE is usually around 1.1–1.4 for K in 0–10 with the default config. We haven't really pushed on architecture or data difficulty too much yet, doing that now!
 
 ## License
 
