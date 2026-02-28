@@ -1,6 +1,6 @@
 # SpecTackle
 
-ML for estimating how many Gaussian components are in a 1D spectrum. The idea is to train on synthetic data first, then eventually plug into something like ScousePy that can fit the actual line parameters once it knows how many to look for. Right now it's all synthetic spectra and we're just trying to get the count right.
+ML workflow for decomposing gaussian spectra, very much still a WIP. Currently, limited scope to figuring out how many Gaussian components are in a 1D spectrum. The idea is to train on synthetic data first, then eventually plug into something like ScousePy that can fit the actual line parameters once it knows how many to look for. Right now it's all synthetic spectra and we're just trying to get the count right.
 
 ## What's in here
 
