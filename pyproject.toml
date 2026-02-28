@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spectackle"
+version = "0.1.0"
+description = "ML for spectral line component counting in PPV cubes (ACES SpecTackle)"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "torch",
+    "matplotlib",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

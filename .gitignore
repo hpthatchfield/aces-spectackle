@@ -3,3 +3,24 @@
 .cursorrules
 *.cursorrules.swp
 .aider*
+
+docs/project_summary.md
+
+# Build metadata from pip install -e .
+*.egg-info
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+*.so
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE / OS
+.DS_Store
+*.swp
+*.swo
