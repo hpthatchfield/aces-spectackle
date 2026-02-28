@@ -13,12 +13,12 @@ We're still on synthetic data only. Real PPV cubes and ScousePy integration are 
 ## Quick start
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/hpthatchfield/aces-spectackle.git
 cd ACES_SpecTackle
 pip install -e .
 ```
 
-Then open `experiments/SpecTackle_SchemeB.ipynb` and run the cells. It'll generate data on the fly, train a small CNN, and show some plots. Scheme B typically takes a few minutes on CPU for the default 8 epochs. `SpecTackle_Compare_BC.ipynb` runs both schemes side-by-side if you want to compare.
+Then either run some test scripts for import testing or just go ahead and  open `experiments/SpecTackle_SchemeB.ipynb`, for example, and run the cells. It'll generate data on the fly, train a small CNN, and show some plots. Scheme B typically takes a few minutes on CPU for the default 8 epochs. `SpecTackle_Compare_BC.ipynb` runs both schemes side-by-side if you want to compare.
 
 ## Layout
 
@@ -29,7 +29,7 @@ Then open `experiments/SpecTackle_SchemeB.ipynb` and run the cells. It'll genera
 
 ## Status
 
-WIP. Scheme B and C both train and converge on synthetic data. Val MAE is usually around 1.1–1.4 for K in 0–10 with the default config. We haven't really pushed on architecture or data difficulty too much yet, doing that now!
+WIP. Scheme B and C both train and converge on synthetic data. At the moment, we're getting val MAE is usually around 1.1–1.4 for K in 0–10 with the default config. Lot's to mess around with, lmk if you have any ideas!
 
 ## License
 
