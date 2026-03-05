@@ -20,7 +20,7 @@ pip install -e .
 
 Then either run some test scripts for import testing or just go ahead and  open `experiments/SpecTackle_SchemeB.ipynb`, for example, and run the cells. It'll generate data on the fly, train a small CNN, and show some plots. Scheme B typically takes a few minutes on CPU for the default 8 epochs. `SpecTackle_Compare_BC.ipynb` runs both schemes side-by-side if you want to compare.
 
-## Layout
+## Structure
 
 - `src/spectackle/` – core package with data generation, models, training, plotting scripts. Probs going to change a lot as we go for the time being.
 - `experiments/` – notebooks (Scheme B, Scheme C, B vs C comparison, and working on getting a version of Scheme A and D up w/ suitble comparisons)
