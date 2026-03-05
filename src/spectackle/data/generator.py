@@ -6,10 +6,10 @@ import numpy as np
 from spectackle.config import deep_update
 
 DEFAULT_GEN = dict(
-    k_mode="poisson",
-    p_zero=0.0,
+    k_mode="uniform",
+    p_zero=0.10,   ### explicit non-detection fraction so model sees empty spectra
+    k_tail_prob=0.0,
     k_mean=3.0,
-    k_tail_prob=0.50,
     k_tail_min=6,
     amp_lognorm_mu=0.0,
     amp_lognorm_sigma=1.0,

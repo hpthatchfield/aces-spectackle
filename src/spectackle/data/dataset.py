@@ -42,7 +42,7 @@ class SyntheticSpectraDataset(Dataset):
 BASE_CFG = dict(
     n_channels=256,
     min_components=0,
-    max_components=10,
+    max_components=20,
     vrange=(-200.0, 200.0),
     gen=deepcopy(DEFAULT_GEN),
 )
