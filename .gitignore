@@ -1,13 +1,27 @@
-
+# Local / editor (do not publish)
 .cursor/
 .cursorrules
 *.cursorrules.swp
 .aider*
+.vscode/
+.idea/
 
+# Loose artifacts
+Picture1.png
 docs/project_summary.md
+
+# Data products (stage cubes/labels on the cluster separately; never commit FITS)
+/data/
+*.fits
+*.fits.gz
+*.npz
+*.h5
+*.hdf5
 
 # Build metadata from pip install -e .
 *.egg-info
+dist/
+build/
 
 # Python
 __pycache__/
@@ -16,11 +30,44 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 *.so
+.venv/
+venv/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Experiment outputs (checkpoints, caches, generated figures)
+**/runs/
+**/cache/
+experiments/**/figures/
+experiments/**/plots_out/
+*.pt
+*.pth
+*.onnx
+
+# Model complexity script outputs
+experiments/model_complexity/*_results.json
+experiments/model_complexity/*_plot.png
+experiments/model_complexity/*_grid.png
+experiments/model_complexity/*_mockup.png
+experiments/model_complexity/experiment_flowchart.png
+experiments/model_complexity/best_scheme_b_plot.png
+experiments/model_complexity/artifacts/
+experiments/model_complexity/runs/
+experiments/model_complexity/REVIEW.md
+experiments/model_complexity/RUN_LOG.md
+
+# Scheme C / curriculum / clean_sweep heavy outputs
+experiments/scheme_c/tier0_parity_results.json
+experiments/scheme_c/artifacts/
+experiments/curriculum/records/
+experiments/curriculum/*.png
+experiments/clean_sweep/archive/
+experiments/clean_sweep/runs/**/step_*/model.pt
+experiments/clean_sweep/run_log.csv
 
 # IDE / OS
 .DS_Store
 *.swp
 *.swo
+*~

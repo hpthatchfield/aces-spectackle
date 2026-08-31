@@ -1,25 +1,30 @@
-### CountNet1D – Scheme B regression model
+### CountNet1D - Scheme B regression model
 import torch.nn as nn
+
+from spectackle.models.pooling import masked_global_mean_pool
 
 
 class CountNet1D(nn.Module):
-    """Scheme B: regression head → scalar K."""
+    """Scheme B: regression head -> scalar K. Conv blocks use BatchNorm."""
 
     def __init__(self, width=64):
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv1d(1, width, 9, padding=4),
+            nn.BatchNorm1d(width),
             nn.ReLU(),
             nn.Conv1d(width, width, 9, padding=4),
+            nn.BatchNorm1d(width),
             nn.ReLU(),
             nn.Conv1d(width, width, 9, padding=4),
+            nn.BatchNorm1d(width),
             nn.ReLU(),
         )
         self.head = nn.Linear(width, 1)
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         h = self.conv(x.unsqueeze(1))
-        h = h.mean(dim=-1)
+        h = masked_global_mean_pool(h, mask)
         return self.head(h).squeeze(-1)
 
 
@@ -43,7 +48,7 @@ class CountNet1DDeep(nn.Module):
             nn.Linear(width // 2, 1),
         )
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         h = self.conv(x.unsqueeze(1))
-        h = h.mean(dim=-1)
+        h = masked_global_mean_pool(h, mask)
         return self.head(h).squeeze(-1)

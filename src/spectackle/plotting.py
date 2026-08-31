@@ -1,8 +1,20 @@
-### plot_example, collect_count_predictions
+### plot_example, collect_count_predictions, mae_by_true_k
 import numpy as np
+
+
+def mae_by_true_k(y_true: np.ndarray, y_pred: np.ndarray, Kmax: int) -> dict[int, float]:
+    """MAE per true K, dict k: mean |error|."""
+    out = {}
+    for k in range(Kmax + 1):
+        mask = y_true == k
+        if mask.sum() == 0:
+            out[k] = float("nan")
+        else:
+            out[k] = float(np.abs(y_pred[mask] - y_true[mask]).mean())
+    return out
 import torch
 
-from spectackle.training import _norm
+from spectackle.training import batch_model_input
 
 
 def plot_example(ds, idx: int = 0, title=""):
@@ -31,13 +43,53 @@ def collect_count_predictions_b(
     for bi, batch in enumerate(loader):
         if bi >= max_batches:
             break
-        x = _norm(batch["spec"].to(device))
+        x, mask = batch_model_input(batch, device)
         K = batch["K_true"].to(device).long().squeeze(-1)
-        K_hat = model(x)
+        K_hat = model(x, mask)
         Kp = torch.clamp(torch.round(K_hat), 0, Kmax).long()
         y_true.append(K.cpu().numpy())
         y_pred.append(Kp.cpu().numpy())
     return np.concatenate(y_true), np.concatenate(y_pred)
+
+
+@torch.no_grad()
+def collect_predictions_with_spectra_b(
+    model, loader, *, device="cpu", Kmax=10, max_batches=50
+):
+    """
+    Collect (y_true, y_pred, specs, specs_clean) for failure analysis.
+    specs, specs_clean: (N, L) numpy arrays.
+    """
+    model.eval()
+    y_true, y_pred, specs, specs_clean = [], [], [], []
+    for bi, batch in enumerate(loader):
+        if bi >= max_batches:
+            break
+        x, mask = batch_model_input(batch, device)
+        K = batch["K_true"].to(device).long().squeeze(-1)
+        K_hat = model(x, mask)
+        Kp = torch.clamp(torch.round(K_hat), 0, Kmax).long()
+        sp = batch["spec"].cpu().numpy()
+        sc = batch.get("spec_clean")
+        if sc is not None:
+            sc = sc.cpu().numpy()
+        y_true.append(K.cpu().numpy())
+        y_pred.append(Kp.cpu().numpy())
+        specs.append(sp)
+        if sc is not None:
+            specs_clean.append(sc)
+    yt = np.concatenate(y_true)
+    yp = np.concatenate(y_pred)
+    sp_concat = np.concatenate(specs)
+    if specs_clean:
+        sc_concat = np.concatenate(specs_clean)
+    else:
+        sc_concat = None
+    if sp_concat.ndim == 3:
+        sp_concat = sp_concat.squeeze(1)
+    if sc_concat is not None and sc_concat.ndim == 3:
+        sc_concat = sc_concat.squeeze(1)
+    return yt, yp, sp_concat, sc_concat
 
 
 @torch.no_grad()
@@ -50,9 +102,9 @@ def collect_count_predictions(
     for bi, batch in enumerate(loader):
         if bi >= max_batches:
             break
-        x = _norm(batch["spec"].to(device))
+        x, mask = batch_model_input(batch, device)
         K = batch["K_true"].to(device).long().squeeze(-1)
-        logits = model(x)
+        logits = model(x, mask)
         probs = torch.softmax(logits, dim=1)
         Kp = torch.argmax(logits, dim=1).long()
         ks = torch.arange(Kmax + 1, device=device).float()
@@ -72,13 +124,13 @@ def collect_predictions_bc(model_b, model_c, loader, device, Kmax, max_batches=1
     for bi, batch in enumerate(loader):
         if bi >= max_batches:
             break
-        x = _norm(batch["spec"].to(device))
+        x, mask = batch_model_input(batch, device)
         K = batch["K_true"].to(device).long().squeeze(-1)
 
-        K_b = model_b(x)
+        K_b = model_b(x, mask)
         K_b = torch.clamp(torch.round(K_b), 0, Kmax).long()
 
-        logits = model_c(x)
+        logits = model_c(x, mask)
         K_c = torch.argmax(logits, dim=1)
         probs = torch.softmax(logits, dim=1)
         ks = torch.arange(Kmax + 1, device=device).float()

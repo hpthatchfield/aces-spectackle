@@ -11,6 +11,9 @@ dependencies = [
     "numpy",
     "torch",
     "matplotlib",
+    "astropy",
+    "spectral-cube",
+    "scipy",
 ]
 
 [tool.setuptools.packages.find]
