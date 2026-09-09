@@ -52,18 +52,32 @@ DEFAULT_GEN = dict(
     fwhm_lognorm_sigma=0.44,
     blend_cluster_prob=0.0,
     cluster_width_range=(1.0, 30.0),
+    ### "uniform" | "log_uniform" over cluster_width_range (km/s std of mu around a shared center).
+    cluster_width_sample="uniform",
+    ### If True, multiply cluster std by (k/2) so nearest-neighbor spacing does not
+    ### collapse when more components share the same neighborhood.
+    cluster_width_scale_with_k=False,
+    ### k_mode="islands": K is an outcome of n_islands x a short extra-component chain.
+    ### n_island_weights[i] = P(n_islands = i+1); unused unless k_mode="islands".
+    n_island_weights=(0.70, 0.22, 0.06, 0.02),
+    p_secondary=0.45,
+    p_tertiary=0.30,
+    p_chain_more=0.15,
+    p_chain_decay=0.65,
+    chain_sep_sigma_range=(0.50, 1.60),
+    island_min_sep_kms=12.0,
     noise_std_range=(0.02, 0.15),
     # If set, enforce that the *clean* peak height is at least
     # `min_peak_height_factor * noise_std` for non-empty spectra (k>0).
     # This effectively guarantees a minimum per-spectrum SNR.
     min_peak_height_factor=None,
     # If set (lo, hi), after forming the Gaussian stack (before baseline), scale spec so
-    # max(spec_clean) ~ Uniform(lo, hi). Use to fix peak scale vs noise_std (e.g. SNR sweeps).
+    # max(spec_clean) ~ Uniform(lo, hi). Use to fix peak scale vs noise_std (e.g. for experimental SNR sweeps).
     peak_scale_range=None,
     baseline_poly_prob=0.5,
     baseline_max_slope=0.02,
     baseline_max_quad=0.0002,
-    ### ALMA-style axis masking (mask_prob=0.0 disables; mirrors real-cube padding).
+    ### ACES data incompleteness re axis masking (mask_prob=0.0 disables; mirrors real-cube padding).
     mask_prob=0.0,
     valid_frac_range=(0.6, 0.75),
     nan_moat_frac_range=(0.3, 0.9),
@@ -112,6 +126,19 @@ def _draw_component_sigmas(gen: dict, k: int, rng: np.random.Generator) -> np.nd
             raise ValueError(f'gen.fwhm_sample must be "uniform" or "lognormal", got {sample!r}')
         return fwhm / FWHM_TO_SIGMA_KMS
     raise ValueError(f'gen.width_mode must be "sigma" or "fwhm", got {mode!r}')
+
+
+def _draw_cluster_width_kms(gen: dict, rng: np.random.Generator) -> float:
+    """Std (km/s) of component centers around a shared cluster mean."""
+    cw_lo, cw_hi = float(gen["cluster_width_range"][0]), float(gen["cluster_width_range"][1])
+    if not (0.0 < cw_lo <= cw_hi):
+        raise ValueError(f"gen.cluster_width_range must satisfy 0 < lo <= hi, got {gen['cluster_width_range']}")
+    sample = str(gen.get("cluster_width_sample", "uniform"))
+    if sample == "uniform":
+        return float(rng.uniform(cw_lo, cw_hi))
+    if sample == "log_uniform":
+        return float(np.exp(rng.uniform(np.log(cw_lo), np.log(cw_hi))))
+    raise ValueError(f'gen.cluster_width_sample must be "uniform" or "log_uniform", got {sample!r}')
 
 
 def _draw_snr_values(gen: dict, n: int, rng: np.random.Generator) -> np.ndarray:
@@ -180,6 +207,197 @@ def _draw_component_amps(
     raise ValueError(f'gen.amp_mode must be "lognorm", "snr", or "snr_rank", got {mode!r}')
 
 
+def _draw_chain_size(gen: dict, rng: np.random.Generator, slots_left: int) -> int:
+    """Primary plus a decaying extra-component chain, capped by remaining Kmax slots."""
+    slots = int(slots_left)
+    if slots <= 1:
+        return max(0, slots)
+    n = 1
+    if rng.random() >= float(gen.get("p_secondary", 0.45)):
+        return n
+    n += 1
+    if n >= slots:
+        return n
+    if rng.random() >= float(gen.get("p_tertiary", 0.30)):
+        return n
+    n += 1
+    p = float(gen.get("p_chain_more", 0.15))
+    decay = float(gen.get("p_chain_decay", 0.65))
+    while n < slots and rng.random() < p:
+        n += 1
+        p *= decay
+    return n
+
+
+def _draw_n_islands(gen: dict, rng: np.random.Generator, kmax: int) -> int:
+    w = np.asarray(gen.get("n_island_weights", (0.70, 0.22, 0.06, 0.02)), dtype=np.float64)
+    if w.size < 1 or np.any(w < 0) or float(w.sum()) <= 0:
+        raise ValueError(f"gen.n_island_weights must be positive, got {gen.get('n_island_weights')}")
+    n_max = min(int(w.size), int(kmax))
+    w = w[:n_max]
+    w = w / w.sum()
+    return int(rng.choice(np.arange(1, n_max + 1), p=w))
+
+
+def _draw_primary_ranked_amps(
+    gen: dict,
+    n: int,
+    rng: np.random.Generator,
+    noise_std: float,
+) -> np.ndarray:
+    """Brightest first (primary), extras as fractions. No shuffle (island families)."""
+    primary_snr = float(_draw_snr_values(gen, 1, rng)[0])
+    primary_amp = float(noise_std) * primary_snr
+    if n <= 1:
+        return np.asarray([primary_amp], dtype=np.float64)
+    ratios = _draw_amp_ratios(gen, n - 1, rng)
+    extra_snr = primary_snr * ratios
+    ### Keep extras above the SNR label floor so nearby peaks are not drawn then dropped.
+    snr_lo = float(gen.get("glance_snr_tol", gen.get("snr_range", (3.0, 20.0))[0]))
+    extra_snr = np.clip(extra_snr, snr_lo, primary_snr)
+    amps = np.empty(n, dtype=np.float64)
+    amps[0] = primary_amp
+    amps[1:] = float(noise_std) * extra_snr
+    return amps
+
+
+def _place_family_mus(
+    mu_primary: float,
+    sigs: np.ndarray,
+    rng: np.random.Generator,
+    v_lo: float,
+    v_hi: float,
+    sep_range: tuple[float, float],
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extras sit near the primary. 2nd extra prefers the opposite side.
+
+    Never clip onto the island edge (that stacked two centers on one channel).
+    Off-island candidates flip to the interior side. Extras that still cannot
+    sit (too close to an existing center, or offset larger than the island)
+    are dropped; K is an outcome.
+
+    Returns mus (n_kept,) and keep indices into sigs/amps.
+    """
+    n = int(sigs.size)
+    mus = [float(mu_primary)]
+    keep = [0]
+    side0 = 0.0
+    lo, hi = float(sep_range[0]), float(sep_range[1])
+    if not (0.0 < lo <= hi):
+        raise ValueError(f"gen.chain_sep_sigma_range must satisfy 0 < lo <= hi, got {sep_range}")
+    sig0 = float(sigs[0])
+    for j in range(1, n):
+        ### ~0.5 km/s is ~2 ACES channels / one heatmap splat; also a fraction of the
+        ### intended extra offset so wide lines do not land on top of the primary.
+        min_dv = max(0.5, 0.25 * lo * (sig0 + float(sigs[j])))
+        for _try in range(40):
+            sep_sig = float(rng.uniform(lo, hi))
+            if len(mus) == 2 and side0 != 0.0:
+                side = -side0
+            else:
+                side = float(rng.choice(np.array([-1.0, 1.0])))
+            dv = side * sep_sig * (sig0 + float(sigs[j]))
+            cand = float(mu_primary + dv)
+            if cand < v_lo or cand > v_hi:
+                cand = float(mu_primary - dv)
+            if not (v_lo <= cand <= v_hi):
+                continue
+            if any(abs(cand - m) < min_dv for m in mus):
+                continue
+            mus.append(cand)
+            keep.append(j)
+            if len(keep) == 2:
+                side0 = 1.0 if cand >= mu_primary else -1.0
+            break
+        ### extra j dropped if still unplaced after retries
+    return np.asarray(mus, dtype=np.float64), np.asarray(keep, dtype=np.int64)
+
+
+def _draw_island_components(
+    gen: dict,
+    rng: np.random.Generator,
+    *,
+    kmax: int,
+    v_isl_lo: float,
+    v_isl_hi: float,
+    noise_std: float | None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int, list[int], float | None]:
+    """
+    Place 1+ velocity islands, each with a primary and a short extra chain.
+
+    Returns mus, sigs, amps (length k), k, n_islands, island_sizes, noise_std.
+    """
+    if noise_std is None:
+        if gen.get("noise_sigma") is not None:
+            noise_std = float(gen["noise_sigma"])
+        else:
+            noise_std = float(rng.uniform(*gen["noise_std_range"]))
+
+    n_target = _draw_n_islands(gen, rng, kmax)
+    min_sep = gen.get("island_min_sep_kms")
+    min_sep = None if min_sep is None else float(min_sep)
+    sep_range = tuple(gen.get("chain_sep_sigma_range", (0.50, 1.60)))
+    amp_mode = str(gen.get("amp_mode", "snr"))
+
+    mus_all: list[float] = []
+    sigs_all: list[float] = []
+    amps_all: list[float] = []
+    island_sizes: list[int] = []
+    primaries: list[float] = []
+    remaining = int(kmax)
+
+    for _ in range(n_target):
+        if remaining <= 0:
+            break
+        n_here = _draw_chain_size(gen, rng, remaining)
+        if n_here <= 0:
+            break
+        sigs = _draw_component_sigmas(gen, n_here, rng)
+        if amp_mode == "snr_rank":
+            amps = _draw_primary_ranked_amps(gen, n_here, rng, float(noise_std))
+        else:
+            amps, noise_std = _draw_component_amps(gen, n_here, rng, noise_std=noise_std)
+            ### Keep the brightest as primary (slot 0) for placement.
+            order_amp = np.argsort(amps)[::-1]
+            amps = amps[order_amp]
+            sigs = sigs[order_amp]
+
+        mu0 = float(rng.uniform(v_isl_lo, v_isl_hi))
+        if min_sep is not None and primaries:
+            for _try in range(80):
+                if all(abs(mu0 - p) >= min_sep for p in primaries):
+                    break
+                mu0 = float(rng.uniform(v_isl_lo, v_isl_hi))
+        mus, keep = _place_family_mus(mu0, sigs, rng, v_isl_lo, v_isl_hi, sep_range)
+        sigs = np.asarray(sigs, dtype=np.float64)[keep]
+        amps = np.asarray(amps, dtype=np.float64)[keep]
+        n_here = int(mus.size)
+        mus_all.extend(mus.tolist())
+        sigs_all.extend(sigs.tolist())
+        amps_all.extend(amps.tolist())
+        island_sizes.append(n_here)
+        primaries.append(float(mus[0]))
+        remaining -= n_here
+
+    k = int(len(mus_all))
+    if k == 0:
+        return (
+            np.zeros(0, dtype=np.float64),
+            np.zeros(0, dtype=np.float64),
+            np.zeros(0, dtype=np.float64),
+            0,
+            0,
+            [],
+            noise_std,
+        )
+    mus = np.asarray(mus_all, dtype=np.float64)
+    sigs = np.asarray(sigs_all, dtype=np.float64)
+    amps = np.asarray(amps_all, dtype=np.float64)
+    order = np.argsort(mus)
+    return mus[order], sigs[order], amps[order], k, len(island_sizes), island_sizes, noise_std
+
+
 def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
     """
     Returns dict with stable keys used across notebooks:
@@ -202,9 +420,13 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
 
     if rng.random() < gen["p_zero"]:
         k = 0
+        use_islands = False
     else:
         mode = gen.get("k_mode", "poisson")
-        if mode == "uniform":
+        use_islands = mode == "islands"
+        if use_islands:
+            k = -1  ### filled by island draw
+        elif mode == "uniform":
             k = int(rng.integers(0, Kmax + 1))
             if k > 0:
                 k = max(k, min_components)
@@ -232,7 +454,8 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
             else:
                 k = max(1, int(rng.poisson(gen["k_mean"])))
             k = max(k, min_components) if k > 0 else 0
-    k = min(k, Kmax)
+    if not use_islands:
+        k = min(k, Kmax)
 
     i0, i1, nan_left, nan_right = draw_valid_island(C, gen, rng)
     v_isl_lo = float(min(v[i0], v[i1 - 1]))
@@ -243,18 +466,33 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
     sig = np.ones(Kmax, dtype=np.float32)
 
     noise_std_drawn: float | None = None
+    n_islands = 0
+    island_sizes: list[int] = []
 
-    if k > 0:
-        ### Blend-cluster draws keep components in a velocity neighborhood (partial overlaps).
-        ### Min-sep redraws below resample cluster mus around the same center, or else
-        ### redraw non-cluster mus across the full island.
+    if use_islands:
+        mus, sigs, amps, k, n_islands, island_sizes, noise_std_drawn = _draw_island_components(
+            gen,
+            rng,
+            kmax=Kmax,
+            v_isl_lo=v_isl_lo,
+            v_isl_hi=v_isl_hi,
+            noise_std=noise_std_drawn,
+        )
+        if k > 0:
+            A[:k] = amps.astype(np.float32)
+            mu[:k] = mus.astype(np.float32)
+            sig[:k] = sigs.astype(np.float32)
+    elif k > 0:
+        ### Clustered mus: K>=2 components share a velocity neighborhood and are allowed
+        ### to overlap. Min-sep (if set) applies only to non-cluster island draws. do not
+        ### resample a tight cluster onto the full island.
         used_blend_cluster = False
-        center = 0.0
-        cw = 1.0
         if rng.random() < gen["blend_cluster_prob"] and k >= 2:
             used_blend_cluster = True
             center = rng.uniform(v_isl_lo + 0.2 * (v_isl_hi - v_isl_lo), v_isl_hi - 0.2 * (v_isl_hi - v_isl_lo))
-            cw = rng.uniform(*gen["cluster_width_range"])
+            cw = _draw_cluster_width_kms(gen, rng)
+            if bool(gen.get("cluster_width_scale_with_k", False)):
+                cw = cw * (float(k) / 2.0)
             mus = center + rng.normal(0.0, cw, size=k)
             mus = np.clip(mus, v_isl_lo, v_isl_hi)
         else:
@@ -278,12 +516,14 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
         mus, sigs, amps = mus[order], sigs[order], amps[order]
         ### Optional: enforce spatial separation between adjacent peaks (sorted mu).
         ### Separation is max(factor * (sigma_i+sigma_{i+1}), min_sep_channels * dv).
-        ### Cluster draws resample around the same center/width; non-cluster redraws
-        ### mus across the full island.
         sep_factor = gen.get("min_component_separation")
         min_sep_ch = gen.get("min_sep_channels")
         dv_kms = channel_width_kms(cfg) if min_sep_ch is not None else None
-        if (sep_factor is not None or min_sep_ch is not None) and k >= 2:
+        if (
+            (sep_factor is not None or min_sep_ch is not None)
+            and k >= 2
+            and not used_blend_cluster
+        ):
             def _min_sep_ok(mus_sorted: np.ndarray) -> bool:
                 for i in range(k - 1):
                     min_sep = 0.0
@@ -298,19 +538,8 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
             for _ in range(200):
                 if _min_sep_ok(mus):
                     break
-                if used_blend_cluster:
-                    mus = center + rng.normal(0.0, cw, size=k)
-                    mus = np.clip(mus, v_isl_lo, v_isl_hi)
-                else:
-                    mus = rng.uniform(v_isl_lo, v_isl_hi, size=k)
+                mus = rng.uniform(v_isl_lo, v_isl_hi, size=k)
                 mus = np.sort(mus)
-            ### Cluster can be too tight for K>=3 + floor; fall back to island draw.
-            if not _min_sep_ok(mus):
-                for _ in range(200):
-                    mus = rng.uniform(v_isl_lo, v_isl_hi, size=k)
-                    mus = np.sort(mus)
-                    if _min_sep_ok(mus):
-                        break
         A[:k] = amps.astype(np.float32)
         mu[:k] = mus.astype(np.float32)
         sig[:k] = sigs.astype(np.float32)
@@ -341,9 +570,9 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
         baseline_term = (slope * x + quad * (x**2)).astype(np.float32)
         spec += baseline_term
 
-    ### Optional: enforce minimum peak height vs noise.
-    ### We compare to spec_clean (pure Gaussian, no baseline/noise).
-    ### For k=0 we keep the existing behavior (noise-only spectra).
+    ### Optional enforcment of minimum peak height vs noise.
+    ### Compare to spec_clean (pure Gaussian, no baseline/noise).
+    ### For k=0 we keep the existing noise-only spectra.
     if noise_std_drawn is None:
         if gen.get("noise_sigma") is not None:
             noise_std_drawn = float(gen["noise_sigma"])
@@ -368,7 +597,7 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
     spec = apply_axis_mask(spec, i0, i1, nan_left, nan_right)
     spec_clean = apply_axis_mask(spec_clean, i0, i1, nan_left, nan_right)
 
-    return dict(
+    out = dict(
         spec=spec,
         spec_clean=spec_clean,
         k=k,
@@ -378,3 +607,7 @@ def generate_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> dict:
         component_v_kms=mu,
         component_sigma=sig,
     )
+    if use_islands:
+        out["n_islands"] = int(n_islands)
+        out["island_sizes"] = np.asarray(island_sizes, dtype=np.int32)
+    return out

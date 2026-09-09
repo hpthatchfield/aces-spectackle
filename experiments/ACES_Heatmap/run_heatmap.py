@@ -99,7 +99,7 @@ def main() -> None:
     parser.add_argument("--v-scale-kms", type=float, default=100.0)
     parser.add_argument("--run-dir", type=Path, default=None)
     parser.add_argument("--tag", type=str, default="")
-    parser.add_argument("--gen-preset", choices=("simple_snr", "simple_glance", "default"), default="simple_snr")
+    parser.add_argument("--gen-preset", choices=("simple_snr", "simple_glance", "default", "islands"), default="simple_snr")
     parser.add_argument("--v-half-kms", type=float, default=80.0)
     parser.add_argument("--v-center-kms", type=float, default=0.0)
     parser.add_argument("--full-axis", action="store_true")

@@ -79,7 +79,8 @@ ACES_GEN_SIMPLE_GLANCE = dict(
 
 ### SNR prune only (no resolvable-peak cap): keep all amp/sigma>=3 centers as heatmap targets.
 ### Soft draw-time separation: min_sep_channels~12 -> ~2.5 km/s at dv~0.208, plus
-### 0.5 * (sigma_i+sigma_j) so wider lines stay farther apart (also applied inside blend clusters).
+### 0.5 * (sigma_i+sigma_j) so wider lines stay farther apart. Min-sep applies to
+### island-uniform draws only; blend-cluster draws keep their overlaps (no full-island fallback).
 ### blend_cluster_prob=0.5: half of K>=2 draws are velocity-clustered (std 3-10 km/s)
 ### so shoulders / partial doubles are sampled well; the rest stay island-uniform.
 ### FWHM lognormal: median exp(1.39)~4 km/s (narrow-biased); clip to [1.5, 60].
@@ -113,10 +114,49 @@ ACES_GEN_SIMPLE_SNR = dict(
     glance_cap_mode="none",  ### no resolvable bump-cap
 )
 
+ACES_GEN_ISLANDS = dict(
+    width_mode="fwhm",
+    fwhm_min_kms=1.5,
+    fwhm_max_kms=60.0,
+    fwhm_sample="lognormal",
+    fwhm_lognorm_mu=1.39,
+    fwhm_lognorm_sigma=0.70,
+    amp_mode="snr_rank",
+    snr_range=(3.0, 20.0),
+    snr_sample="uniform",
+    amp_ratio_range=(0.25, 0.70),
+    amp_ratio_sample="uniform",
+    noise_sigma=1.0,
+    k_mode="islands",
+    p_zero=0.08,
+    min_component_separation=None,
+    min_sep_channels=None,
+    min_amp_ratio=None,
+    blend_cluster_prob=0.0,
+    n_island_weights=(0.70, 0.22, 0.06, 0.02),
+    p_secondary=0.75,
+    p_tertiary=0.40,
+    p_chain_more=0.20,
+    p_chain_decay=0.65,
+    chain_sep_sigma_range=(0.40, 1.15),
+    island_min_sep_kms=12.0,
+    baseline_poly_prob=0.40,
+    baseline_max_slope=0.04,
+    baseline_max_quad=0.0005,
+    min_peak_height_factor=3.0,
+    mask_prob=1.0,
+    valid_frac_range=(0.6, 0.75),
+    nan_moat_frac_range=(0.3, 0.9),
+    glance_label_k=True,
+    glance_snr_tol=3.0,
+    glance_cap_mode="none",
+)
+
 ACES_GEN_PRESETS = {
     "default": None,  ### use ACES_GEN_DEFAULT (+ biased_low weights)
     "simple_glance": ACES_GEN_SIMPLE_GLANCE,
     "simple_snr": ACES_GEN_SIMPLE_SNR,
+    "islands": ACES_GEN_ISLANDS,
 }
 
 ACES_BASE_CFG = dict(
@@ -155,6 +195,7 @@ def build_aces_synth_cfg(
       - "default": biased_low K prior (Scheme B/C)
       - "simple_glance": MOPRA-simple physics + resolvable-glance labels + ALMA mask
       - "simple_snr": same physics + SNR prune only (no resolvable cap) + soft min sep
+      - "islands": K from velocity families (primary + short extra chain); Kmax is a cap
     """
     if gen_preset not in ACES_GEN_PRESETS:
         raise ValueError(f"Unknown gen_preset {gen_preset!r}; use one of {sorted(ACES_GEN_PRESETS)}")
@@ -207,6 +248,7 @@ def generate_aces_spectrum(cfg: dict, rng: np.random.Generator, v_axis=None) -> 
 __all__ = [
     "ACES_BASE_CFG",
     "ACES_GEN_DEFAULT",
+    "ACES_GEN_ISLANDS",
     "ACES_GEN_PRESETS",
     "ACES_GEN_SIMPLE_GLANCE",
     "ACES_GEN_SIMPLE_SNR",

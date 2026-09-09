@@ -102,7 +102,7 @@ def main() -> None:
     parser.add_argument("--scheduler", action="store_true")
     parser.add_argument("--run-dir", type=Path, default=None)
     parser.add_argument("--tag", type=str, default="")
-    parser.add_argument("--gen-preset", choices=("simple_snr", "simple_glance", "default"), default=None)
+    parser.add_argument("--gen-preset", choices=("simple_snr", "simple_glance", "default", "islands"), default=None)
     parser.add_argument("--Kmax", type=int, default=None)
     parser.add_argument("--v-half-kms", type=float, default=None)
     parser.add_argument("--v-center-kms", type=float, default=None)

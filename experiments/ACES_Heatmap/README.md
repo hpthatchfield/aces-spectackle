@@ -49,8 +49,43 @@ $PY experiments/ACES_Heatmap/run_cube_heatmap_map.py \
 
 For a quick test, add `--n-train 2000 --n-val 500 --epochs 2` on the train scripts.
 
-Synth vs real morphology gallery:
+Synth vs real morphology gallery (labeled synth + unlabeled synth|region1):
 
 ```bash
 $PY experiments/ACES_Heatmap/plots/plot_synth_vs_real_gallery.py --gen-preset simple_snr
+$PY experiments/ACES_Heatmap/sanity_check_generator.py
 ```
+
+`islands` (try this for blended + unusual configs): K is the outcome of a few
+velocity families. Each family is a bright primary plus a short extra chain
+(secondary / tertiary, then a thin exotic tail). Kmax=10 is a cap, not a target.
+
+```bash
+$PY experiments/ACES_Heatmap/sanity_check_generator.py --gen-preset islands --Kmax 10 --n-samples 2000
+$PY experiments/ACES_Heatmap/plots/plot_synth_vs_real_gallery.py --gen-preset islands --Kmax 10
+```
+
+## Mina Stage 1 (2026-09-01)
+
+First full `simple_snr` heatmap train (20k/4k, 8 epochs, scheduler, kernel 25, +/-80 km/s). Weights stay on Mina; plots + manifest are copied here.
+
+- Mina run: `baselines/runs/aces_heatmap_2026-09-01T204928Z_simple_snr_k6`
+- Copy: `experiments/ACES_Heatmap/records/aces_heatmap_2026-09-01T204928Z_simple_snr_k6/` (`curves.png`, `example_heatmaps.png`, `manifest.json`, `history.json`)
+- final val: loss 0.1707, peak_prob 0.797, RF 145 ch (~30 km/s)
+- peak-decode (side check, not the K model): height 0.25, prom 0.08, K_MAE 0.360, exact 0.724
+
+## Mina Stage 2 (2026-09-02)
+
+K head on the frozen Stage 1 heatmap. Same 20k/4k/8.
+
+- Mina run: `baselines/runs/aces_heatmap_k_2026-09-02T225052Z_simple_snr_k6`
+- Copy: `experiments/ACES_Heatmap/records/aces_heatmap_k_2026-09-02T225052Z_simple_snr_k6/`
+- K head: MAE 0.161, exact 0.845  (peak-decode still 0.360 / 0.724)
+- Per-K success/failure gallery (next to the Aug glance one):
+  `experiments/ACES_Heatmap/figures/failure_spectra/aces_heatmap_k_2026-09-02T225052Z_simple_snr_k6_val_by_k.png`
+
+Region1 cube map (native ACES cutout, not the 0.25 km/s NLW subcube):
+`experiments/ACES_Heatmap/records/aces_heatmap_k_2026-09-02T225052Z_simple_snr_k6/hnco_region1_aces_hm_k_pred.fits`
+K map figure: `experiments/ACES_Heatmap/figures/hnco_region1_aces_hm_k_pred_simple_snr.png`
+(the old glance map is still `figures/hnco_region1_aces_hm_k_pred.png`)
+
