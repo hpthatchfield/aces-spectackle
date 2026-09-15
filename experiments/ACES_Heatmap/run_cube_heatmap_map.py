@@ -39,6 +39,7 @@ _DEFAULT_MOSAIC = _REPO / "data" / (
 )
 sys.path.insert(0, str(_REPO / "src"))
 sys.path.insert(0, str(_SHARED))
+sys.path.insert(0, str(_ACES / "plots"))
 
 from cube_cutout_utils import resolve_spatial_bounds  ### noqa: E402
 
@@ -360,20 +361,10 @@ def main() -> None:
         )
 
     if not args.no_plot:
-        import matplotlib.pyplot as plt
+        from plot_region_k_map import save_k_map_figure  ### noqa: E402
 
-        fig_out = _ACES / "figures" / f"{args.out.stem}.png"
-        fig_out.parent.mkdir(parents=True, exist_ok=True)
-        fig, ax = plt.subplots(figsize=(7, 5))
-        im = ax.imshow(k_map, origin="lower", cmap="viridis", vmin=0, vmax=max(4, Kmax))
-        fig.colorbar(im, ax=ax, label="K_pred")
-        ax.set_title(f"ACES heatmap->K ({run_dir.name})")
-        ax.set_xlabel("x (cutout pix)")
-        ax.set_ylabel("y (cutout pix)")
-        fig.tight_layout()
-        fig.savefig(fig_out, dpi=140)
-        plt.close(fig)
-        print(f"Wrote {fig_out}", flush=True)
+        fig_out = _ACES / "figures" / "region1" / f"{args.out.stem}.png"
+        save_k_map_figure(k_map, hdu.header, fig_out, title="HNCO region1")
 
 
 if __name__ == "__main__":

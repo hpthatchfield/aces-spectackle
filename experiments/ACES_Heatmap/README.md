@@ -86,6 +86,42 @@ K head on the frozen Stage 1 heatmap. Same 20k/4k/8.
 
 Region1 cube map (native ACES cutout, not the 0.25 km/s NLW subcube):
 `experiments/ACES_Heatmap/records/aces_heatmap_k_2026-09-02T225052Z_simple_snr_k6/hnco_region1_aces_hm_k_pred.fits`
-K map figure: `experiments/ACES_Heatmap/figures/hnco_region1_aces_hm_k_pred_simple_snr.png`
-(the old glance map is still `figures/hnco_region1_aces_hm_k_pred.png`)
+K map: `experiments/ACES_Heatmap/figures/region1/simple_snr_k_map.png`
+(the old glance map is `figures/region1/simple_glance_k_map.png`)
 
+## Mina islands Stage 1 (2026-09-09)
+
+Full `islands` heatmap train (20k/4k, 8 epochs, scheduler, kernel 25, +/-80 km/s, Kmax=10). Weights stay on Mina; plots + manifest are copied here.
+
+- Mina run: `experiments/ACES_Heatmap/runs/aces_heatmap_2026-09-09T230054Z_aces_hm_islands_k10_pm80`
+- Copy: `experiments/ACES_Heatmap/records/aces_heatmap_2026-09-09T230054Z_aces_hm_islands_k10_pm80/`
+- final val: loss 0.290, peak_prob 0.649, RF 145 ch (~30 km/s)
+- peak-decode (side check, not the K model): height 0.25, prom 0.08, K_MAE 1.118, exact 0.345
+
+## Mina islands Stage 2 (2026-09-12)
+
+K head on the frozen Stage 1 heatmap. Same 20k/4k/8 as Stage 1.
+
+- Mina run: `experiments/ACES_Heatmap/runs/aces_heatmap_k_2026-09-12T223630Z_aces_hm_k_islands_k10_pm80`
+- Copy: `experiments/ACES_Heatmap/records/aces_heatmap_k_2026-09-12T223630Z_aces_hm_k_islands_k10_pm80/`
+- K head: MAE 0.454, exact 0.609  (peak-decode still 1.118 / 0.345)
+- Per-K val gallery (2000 val spectra):
+  `experiments/ACES_Heatmap/figures/failure_spectra/aces_heatmap_k_2026-09-12T223630Z_aces_hm_k_islands_k10_pm80_val_by_k.png`
+
+Region1 cube map (native ACES cutout):
+`experiments/ACES_Heatmap/records/aces_heatmap_k_2026-09-12T223630Z_aces_hm_k_islands_k10_pm80/hnco_region1_aces_hm_k_pred_islands.fits`
+K map: `experiments/ACES_Heatmap/figures/region1/islands_k_map.png`
+Unlabeled spectra (mixed K): `experiments/ACES_Heatmap/figures/region1/islands_spectra_mixed.png`
+Per estimated K: `experiments/ACES_Heatmap/figures/region1/islands_k*.png`
+(min K=1, med=5, mean=4.55; no K=0 pixels)
+
+```bash
+$PY experiments/ACES_Heatmap/plots/plot_region_by_k.py \
+  --k-pred experiments/ACES_Heatmap/records/aces_heatmap_k_2026-09-12T223630Z_aces_hm_k_islands_k10_pm80/hnco_region1_aces_hm_k_pred_islands.fits \
+  --cube data/hnco_region1_native_aces.fits \
+  --tag islands
+```
+
+The 2-epoch plumbing check is still under
+`experiments/ACES_Heatmap/records/aces_heatmap_k_2026-09-11T175059Z_aces_hm_k_islands_k10_local/`
+(K head MAE 0.538, exact 0.534).

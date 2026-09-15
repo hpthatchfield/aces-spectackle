@@ -39,6 +39,10 @@ from spectackle.data.generator import _make_v_axis  ### noqa: E402
 from spectackle.data.preprocess import prepare_spectrum_input  ### noqa: E402
 from spectackle.models import CenterHeatmapNet1DDeep, HeatmapCountNet  ### noqa: E402
 from spectackle.models.center_heatmap_decode import decode_centers_from_heatmap  ### noqa: E402
+from spectackle.wcs_plot import wcs_celestial  ### noqa: E402
+
+sys.path.insert(0, str(_ACES / "plots"))
+from plot_region_style import P_CENTER, galactic_lb, lb_title  ### noqa: E402
 
 _DEFAULT_MOSAIC = _REPO / "data" / (
     "group.uid___A001_X1590_X30a9.lp_slongmore.cmz_mosaic.12m7mTP.HNCO_7m12mTP.cube.pbcor.fits"
@@ -128,6 +132,8 @@ def main() -> None:
     args = parser.parse_args()
 
     k_map = fits.getdata(args.k_pred).astype(np.float32)
+    k_hdr = fits.getheader(args.k_pred)
+    wcs = wcs_celestial(k_hdr)
     centers_path = args.centers or args.k_pred.with_name(f"{args.k_pred.stem}_centers.npz")
     z = np.load(centers_path, allow_pickle=True)
     y0, x0 = int(z["y0"]), int(z["x0"])
@@ -147,6 +153,10 @@ def main() -> None:
     print(f"Loading mosaic cutout (lazy): {args.cube}", flush=True)
     cube = SpectralCube.read(str(args.cube.resolve()), use_dask=True)
     ny, nx = k_map.shape
+    ny_cube, nx_cube = int(cube.shape[-2]), int(cube.shape[-1])
+    if (y0 + ny > ny_cube or x0 + nx > nx_cube) and (ny_cube, nx_cube) == (ny, nx):
+        print(f"Cube is already the cutout ({ny}x{nx}); ignoring mosaic offsets y0={y0}, x0={x0}", flush=True)
+        y0, x0 = 0, 0
     y1, x1 = y0 + ny, x0 + nx
     print(f"Extracting [{i0}:{i1}, {y0}:{y1}, {x0}:{x1}]", flush=True)
     sub = cube[i0:i1, y0:y1, x0:x1].filled(np.nan)
@@ -188,13 +198,13 @@ def main() -> None:
         take = min(args.n_each, int(pool_j.size))
         chosen = rng.choice(pool_j, size=take, replace=False)
         coords = [(int(yi[j]), int(xi[j])) for j in sorted(chosen.tolist())]
-        picks.append((f"K_pred={k_want}", coords))
+        picks.append((rf"$K_{{\mathrm{{pred}}}}={k_want}$", coords))
 
     if not picks:
         raise RuntimeError("No spectra selected.")
 
     n_row, n_col = len(picks), args.n_each
-    fig, axes = plt.subplots(n_row, n_col, figsize=(3.8 * n_col, 2.6 * n_row), squeeze=False)
+    fig, axes = plt.subplots(n_row, n_col, figsize=(3.8 * n_col, 2.85 * n_row), squeeze=False)
     for r, (label, coords) in enumerate(picks):
         for c in range(n_col):
             ax = axes[r, c]
@@ -214,28 +224,25 @@ def main() -> None:
             ax2.set_ylim(-0.05, 1.05)
             ax2.tick_params(axis="y", labelsize=7, colors="#C62828")
             if c == n_col - 1:
-                ax2.set_ylabel("P(center)", fontsize=8, color="#C62828")
+                ax2.set_ylabel(P_CENTER, fontsize=8, color="#C62828")
             else:
                 ax2.set_yticklabels([])
             for vv in out["v_slots"]:
                 if np.isfinite(vv):
                     ax.axvline(float(vv), color="#F28E2B", ls="--", lw=0.9)
+            l_deg, b_deg = galactic_lb(wcs, lx, ly)
             ax.set_title(
-                f"({y0 + ly},{x0 + lx})  Khat={out['k_hat']:.2f}->{out['k_round']}",
+                f"{lb_title(l_deg, b_deg)}\n$\\hat{{K}}={out['k_hat']:.2f}$",
                 fontsize=8,
             )
             if c == 0:
-                ax.set_ylabel(f"{label}\nT (norm)", fontsize=8)
+                ax.set_ylabel(f"{label}\n$T$", fontsize=8)
             if r == n_row - 1:
-                ax.set_xlabel("v (km/s)", fontsize=8)
-    fig.suptitle(
-        f"Region1 spectra + heatmap  ({args.run_dir.name})\n"
-        f"grey=norm spectrum, red=P(center), orange dashed=top-K peaks",
-        fontsize=11,
-    )
+                ax.set_xlabel(r"$v$ (km/s)", fontsize=8)
+    fig.suptitle("HNCO region1", fontsize=11)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     out_path = args.out or (
-        _ACES / "figures" / "failure_spectra" / f"{args.k_pred.stem}_heatmap_gallery.png"
+        _ACES / "figures" / "region1" / f"{args.k_pred.stem}_heatmap_gallery.png"
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=140)
