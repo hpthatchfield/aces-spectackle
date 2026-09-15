@@ -73,7 +73,14 @@ def main() -> None:
     )
     parser.add_argument(
         "--gen-preset",
-        choices=("default", "scouse_smooth60", "legacy"),
+        choices=(
+            "default",
+            "scouse_smooth60",
+            "legacy",
+            "simple",
+            "simple_realamp",
+            "islands",
+        ),
         default="default",
     )
     args = parser.parse_args()
@@ -100,6 +107,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ks, peaks, sig_min, noise, snr_drawn = [], [], [], [], []
+    n_islands, fwhm_all = [], []
     for i in range(N_SAMPLES):
         ex = generate_mopra_spectrum(cfg, np.random.default_rng(SEED + i), v_axis=v)
         ks.append(ex["k"])
@@ -107,15 +115,22 @@ def main() -> None:
         peaks.append(float(np.max(ex["spec_clean"][valid])) if valid.any() else 0.0)
         ns = float(ex["noise_std"][0])
         noise.append(ns)
+        if "n_islands" in ex:
+            n_islands.append(int(ex["n_islands"]))
         if ex["k"] > 0:
             sig_min.append(float(np.min(ex["component_sigma"][: ex["k"]])))
             amps = ex["component_amp"][: ex["k"]]
             snr_drawn.append(float(np.max(amps) / ns))
+            fwhm_all.extend((2.3548 * ex["component_sigma"][: ex["k"]]).astype(float).tolist())
 
     ks = np.array(ks)
     noise = np.array(noise)
     print(f"K histogram: mean={ks.mean():.2f}  max={ks.max()}")
     print(f"synth noise_std: med={np.median(noise):.4f}  snr_drawn max med={np.median(snr_drawn):.2f}")
+    if n_islands:
+        print(f"n_islands mean={np.mean(n_islands):.2f}  (K>0 draws with island metadata)")
+    if fwhm_all:
+        print(f"FWHM km/s: med={np.median(fwhm_all):.1f}  p10={np.percentile(fwhm_all, 10):.1f}  p90={np.percentile(fwhm_all, 90):.1f}")
 
     fig, axes = plt.subplots(1, 4, figsize=(14, 3))
     axes[0].hist(ks, bins=np.arange(-0.5, args.Kmax + 1.5), color="#4E79A7", edgecolor="white")
@@ -153,7 +168,9 @@ def main() -> None:
         ex = generate_mopra_spectrum(cfg, np.random.default_rng(SEED + 1000 + idx), v_axis=v)
         ax.plot(v, ex["spec"], lw=0.9, color="#4E79A7", label="noisy")
         ax.plot(v, ex["spec_clean"], lw=0.9, color="#E15759", alpha=0.85, label="clean")
-        ax.set_title(f"k={ex['k']}  sigma_noise={float(ex['noise_std'][0]):.3f}")
+        isl = ex.get("n_islands", None)
+        isl_txt = f"  islands={int(isl)}" if isl is not None else ""
+        ax.set_title(f"k={ex['k']}  sigma_noise={float(ex['noise_std'][0]):.3f}{isl_txt}")
         ax.set_xlim(v[0], v[-1])
     axes[0, 0].legend(fontsize=7)
     for ax in axes[1]:

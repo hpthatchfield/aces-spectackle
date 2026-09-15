@@ -133,12 +133,14 @@ def main() -> None:
             "simple_realamp_snrk",
             "heatmap_realamp",
             "heatmap_realamp_snr5",
+            "islands",
             "legacy",
         ),
         default="scouse_dat",
         help="Synthetic generator preset. heatmap_realamp = realamp+cluster, planted "
         "centers (no glance), Scouse-like K prior (heatmap benchmark). "
-        "heatmap_realamp_snr5 = same but only amp/sigma>=5 centers enter the heatmap target.",
+        "heatmap_realamp_snr5 = same but only amp/sigma>=5 centers enter the heatmap target. "
+        "islands = Henshaw amps/FWHM + velocity-family K (heatmap).",
     )
     parser.add_argument(
         "--noise-calibration-cube",

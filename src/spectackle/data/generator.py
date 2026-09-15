@@ -66,6 +66,9 @@ DEFAULT_GEN = dict(
     p_chain_decay=0.65,
     chain_sep_sigma_range=(0.50, 1.60),
     island_min_sep_kms=12.0,
+    ### Extra-vs-primary floor (km/s). Default 0.5 is ~2 ACES channels / one heatmap splat.
+    ### MOPRA islands should set this to ~1 channel (dv~2 km/s) so extras are not stacked.
+    family_min_sep_kms=0.5,
     noise_std_range=(0.02, 0.15),
     # If set, enforce that the *clean* peak height is at least
     # `min_peak_height_factor * noise_std` for non-empty spectra (k>0).
@@ -268,6 +271,8 @@ def _place_family_mus(
     v_lo: float,
     v_hi: float,
     sep_range: tuple[float, float],
+    *,
+    family_min_sep_kms: float = 0.5,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Extras sit near the primary. 2nd extra prefers the opposite side.
@@ -286,11 +291,14 @@ def _place_family_mus(
     lo, hi = float(sep_range[0]), float(sep_range[1])
     if not (0.0 < lo <= hi):
         raise ValueError(f"gen.chain_sep_sigma_range must satisfy 0 < lo <= hi, got {sep_range}")
+    fam_floor = float(family_min_sep_kms)
+    if fam_floor <= 0.0:
+        raise ValueError(f"gen.family_min_sep_kms must be > 0, got {family_min_sep_kms}")
     sig0 = float(sigs[0])
     for j in range(1, n):
-        ### ~0.5 km/s is ~2 ACES channels / one heatmap splat; also a fraction of the
-        ### intended extra offset so wide lines do not land on top of the primary.
-        min_dv = max(0.5, 0.25 * lo * (sig0 + float(sigs[j])))
+        ### Also a fraction of the intended extra offset so wide lines do not land
+        ### on top of the primary. Floor is axis-dependent (ACES ~0.5, MOPRA ~2).
+        min_dv = max(fam_floor, 0.25 * lo * (sig0 + float(sigs[j])))
         for _try in range(40):
             sep_sig = float(rng.uniform(lo, hi))
             if len(mus) == 2 and side0 != 0.0:
@@ -369,7 +377,15 @@ def _draw_island_components(
                 if all(abs(mu0 - p) >= min_sep for p in primaries):
                     break
                 mu0 = float(rng.uniform(v_isl_lo, v_isl_hi))
-        mus, keep = _place_family_mus(mu0, sigs, rng, v_isl_lo, v_isl_hi, sep_range)
+        mus, keep = _place_family_mus(
+            mu0,
+            sigs,
+            rng,
+            v_isl_lo,
+            v_isl_hi,
+            sep_range,
+            family_min_sep_kms=float(gen.get("family_min_sep_kms", 0.5)),
+        )
         sigs = np.asarray(sigs, dtype=np.float64)[keep]
         amps = np.asarray(amps, dtype=np.float64)[keep]
         n_here = int(mus.size)

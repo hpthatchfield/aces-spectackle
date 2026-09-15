@@ -111,6 +111,26 @@ python experiments/MOPRA_Count/run_cube_heatmap_map.py \
   --out data/mopra_cmz_k_pred_hm_k.fits
 ```
 
+Islands generator (Henshaw widths/amps, family placement). Sanity first, then the same heatmap -> K -> cube path:
+
+```bash
+python experiments/MOPRA_Count/sanity_check_generator.py --gen-preset islands --Kmax 6
+
+python experiments/MOPRA_Count/run_heatmap.py \
+  --gen-preset islands --Kmax 6 --n-train 20000 --n-val 4000 --epochs 8 --scheduler \
+  --tag heatmap_islands_k6_20k
+
+python experiments/MOPRA_Count/run_heatmap_k.py \
+  --heatmap-run-dir experiments/MOPRA_Count/runs/mopra_heatmap_<ts>_heatmap_islands_k6_20k \
+  --n-train 20000 --n-val 4000 --epochs 8 --scheduler \
+  --tag hm_k_islands_k6_20k
+
+python experiments/MOPRA_Count/run_cube_heatmap_map.py \
+  --run-dir experiments/MOPRA_Count/runs/mopra_heatmap_k_<ts>_hm_k_islands_k6_20k \
+  --cube data/CMZ_3mm_HNCO_60.fits \
+  --out data/mopra_cmz_k_pred_hm_k_islands.fits
+```
+
 Optional Scouse fine-tune of the K head: `run_finetune_heatmap_k.py`.
 
 ## ScousePy handoff (component table)
@@ -140,6 +160,7 @@ Notes:
 | `heatmap_realamp` | `--gen-preset heatmap_realamp` | Heatmap benchmark: realamp amps/FWHM + clusters; planted centers (no glance/snr/scouse label surgery); Scouse-like K prior. |
 | `simple_mix` | `--gen-preset simple_mix` | `simple` plus 50% blend clusters (shoulders / weak secondaries), mild low-K bias. Same glance labels. Experimental vs simple_k6_20k. |
 | `simple_realamp` | `--gen-preset simple_realamp` | Ranked amps (primary SNR 4-100) + Henshaw-like lognormal FWHM + mild blend clusters. Glance labels. |
+| `islands` | `--gen-preset islands` | Same Henshaw amps/FWHM/noise as `simple_realamp`, but K is an outcome of velocity families (primary + short extra chain). SNR-prune labels, no resolvable bump-cap. MOPRA Kmax=6. |
 | `simple_realamp_rawk` | `--gen-preset simple_realamp_rawk` | Same morphology as `simple_realamp`, but K = drawn component count (no glance / Scouse filter). |
 | `simple_realamp_snrk` | `--gen-preset simple_realamp_snrk` | Same morphology; K = SNR>=3 component count (close blends count; no resolvable-peak cap). Scouse-like K prior. Scouse MAE 0.841 (worse than `simple`/`simple_realamp`; fixes core under-count, inflates edge K=1). |
 | `scouse_dat_blend_sat` | `--gen-preset scouse_dat_blend_sat` | FAILED: tight clusters + soft label deblend -> Scouse MAE ~1.97, ~92% over-count. |

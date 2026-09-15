@@ -140,6 +140,7 @@ ACES_GEN_ISLANDS = dict(
     p_chain_decay=0.65,
     chain_sep_sigma_range=(0.40, 1.15),
     island_min_sep_kms=12.0,
+    family_min_sep_kms=0.5,
     baseline_poly_prob=0.40,
     baseline_max_slope=0.04,
     baseline_max_quad=0.0005,

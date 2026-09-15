@@ -82,12 +82,14 @@ def main() -> None:
             "simple_realamp",
             "simple_realamp_rawk",
             "simple_realamp_snrk",
+            "islands",
             "legacy",
         ),
         default="scouse_dat",
         help="Synthetic generator preset. simple_matched = simple draws + matched-filter "
         "glance credit (SNR floor + 4 km/s merge). simple_residual = residual-flux cap. "
-        "simple_realamp_snrk = realamp morphology, K = SNR-pass count.",
+        "simple_realamp_snrk = realamp morphology, K = SNR-pass count. "
+        "islands = Henshaw amps/FWHM + velocity-family K.",
     )
     parser.add_argument(
         "--noise-calibration-cube",

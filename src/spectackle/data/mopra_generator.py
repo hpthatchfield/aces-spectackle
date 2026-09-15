@@ -343,6 +343,33 @@ MOPRA_GEN_HEATMAP_REALAMP_SNR5.update(
     snr_label_tol=5.0,
 )
 
+### Islands on the MOPRA smooth60 axis (Henshaw/Scouse morphology, not ACES-narrow).
+### Amps/FWHM/noise match simple_realamp (primary SNR log-uniform 4-100, amp ratios
+### 0.14-0.95, FWHM lognormal median ~24 km/s clip 10-60). Placement is k_mode=islands
+### (velocity families + short extra chain); blend_cluster is off.
+### Labels: SNR prune only (glance_cap_mode=none), same idea as ACES islands.
+### family_min_sep_kms=2 is ~1 smooth60 channel so extras are not stacked on one sample.
+MOPRA_GEN_ISLANDS = deepcopy(MOPRA_GEN_SIMPLE_REALAMP)
+MOPRA_GEN_ISLANDS.update(
+    k_mode="islands",
+    p_zero=0.08,
+    min_component_separation=None,
+    min_sep_channels=None,
+    min_amp_ratio=None,
+    blend_cluster_prob=0.0,
+    n_island_weights=(0.70, 0.22, 0.06, 0.02),
+    p_secondary=0.75,
+    p_tertiary=0.40,
+    p_chain_more=0.20,
+    p_chain_decay=0.65,
+    chain_sep_sigma_range=(0.40, 1.15),
+    island_min_sep_kms=12.0,
+    family_min_sep_kms=2.0,
+    glance_label_k=True,
+    glance_snr_tol=3.0,
+    glance_cap_mode="none",
+)
+
 
 def estimate_mopra_noise_from_cube(
     cube_path: Path | str,
@@ -417,6 +444,7 @@ def build_mopra_synth_cfg(
         "simple_realamp_snrk",
         "heatmap_realamp",
         "heatmap_realamp_snr5",
+        "islands",
     )
     if axis_cube is not None:
         axis_path = Path(axis_cube)
@@ -480,13 +508,19 @@ def build_mopra_synth_cfg(
         gen = deepcopy(MOPRA_GEN_HEATMAP_REALAMP_SNR5)
         if max_components > 6:
             cfg["max_components"] = 6
+    elif gen_preset == "islands":
+        gen = deepcopy(MOPRA_GEN_ISLANDS)
+        ### Same cap as other MOPRA heatmap presets; Scouse K almost never exceeds 4.
+        if max_components > 6:
+            cfg["max_components"] = 6
     else:
         raise ValueError(
             f"Unknown gen_preset {gen_preset!r}; use 'default', 'scouse_smooth60', "
             "'scouse_dat', 'scouse_dat_relaxed', 'scouse_dat_calibrated', "
             "'scouse_dat_blend_sat', 'simple', 'simple_residual', 'simple_matched', "
             "'simple_mix', 'simple_realamp', 'simple_realamp_rawk', "
-            "'simple_realamp_snrk', 'heatmap_realamp', 'heatmap_realamp_snr5', or 'legacy'."
+            "'simple_realamp_snrk', 'heatmap_realamp', 'heatmap_realamp_snr5', "
+            "'islands', or 'legacy'."
         )
     if noise_calibration_cube is not None:
         stats = estimate_mopra_noise_from_cube(noise_calibration_cube)
@@ -557,6 +591,8 @@ __all__ = [
     "MOPRA_GEN_SIMPLE_REALAMP_RAWK",
     "MOPRA_GEN_SIMPLE_REALAMP_SNRK",
     "MOPRA_GEN_HEATMAP_REALAMP",
+    "MOPRA_GEN_HEATMAP_REALAMP_SNR5",
+    "MOPRA_GEN_ISLANDS",
     "MOPRA_GEN_SCOUSE_DAT",
     "MOPRA_GEN_SCOUSE_DAT_BLEND_SAT",
     "MOPRA_GEN_SCOUSE_DAT_CALIBRATED",

@@ -113,6 +113,7 @@ def main() -> None:
             "simple_realamp",
             "simple_realamp_rawk",
             "simple_realamp_snrk",
+            "islands",
             "legacy",
         ),
         default="scouse_dat",

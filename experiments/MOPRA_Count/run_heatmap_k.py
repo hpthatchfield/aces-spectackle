@@ -134,6 +134,7 @@ def main() -> None:
             "simple_realamp_snrk",
             "heatmap_realamp",
             "heatmap_realamp_snr5",
+            "islands",
             "legacy",
         ),
         default=None,
